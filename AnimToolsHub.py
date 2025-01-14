@@ -30,8 +30,7 @@ class VIEW3D_PT_AnimationTools(Panel):
         layout = self.layout
 
         row = layout.row()
-        row.label(text="Armature Picker TODO", icon="OUTLINER_OB_ARMATURE")
-
+        row.operator("object.bonepicker", icon="OUTLINER_OB_ARMATURE")
 
 class VIEW3D_PT_SelectionTools(Panel):
     bl_label = "Selection Sets"
@@ -121,6 +120,78 @@ class POSE_OT_RemoveSelectionSet(Operator):
                 
         return {"FINISHED"}
 
+class POSE_OT_BonePicker(Operator):
+    bl_label = "Bone Picker"
+    bl_idname = "object.bonepicker"
+    
+    def execute(self, context):
+        
+        #BonePicker Collection Setup
+        bp_collection_name = "BonePickerObjects"
+        bp_camera_name = "BonePickerCamera"
+        
+        if bp_collection_name not in bpy.data.collections:
+            bp_collection = bpy.data.collections.new(bp_collection_name)
+            bpy.context.scene.collection.children.link(bp_collection)
+        else:
+            bp_collection = bpy.data.collections[bp_collection_name]
+        
+        #Create BonePicker camera
+        bp_camera_data = bpy.data.cameras.new(bp_camera_name)
+        bp_camera_data.type = 'ORTHO'
+        bp_camera = bpy.data.objects.new(bp_camera_name, bp_camera_data)
+        bp_collection.objects.link(bp_camera)
+        
+        bp_camera.location = (0, 0, 20)
+        bp_camera.rotation_euler = (0.0, 0.0, 0.0)
+        bp_camera.lock_location = (True, True, True)
+        bp_camera.lock_rotation = (True, True, True)
+        bp_camera.data.ortho_scale = 40.0
+        
+        bpy.ops.wm.window_new()
+        
+        bp_window = bpy.context.window_manager.windows[-1]
+        print(type(bp_window))
+        bp_screen = bp_window.screen
+        bp_area = None
+        
+        #prep view display
+        context.area.ui_type = 'VIEW_3D'
+        context.space_data.show_gizmo = False
+        context.space_data.show_region_header = False
+        context.space_data.overlay.show_overlays = False
+        context.space_data.shading.type = 'WIREFRAME'
+        context.space_data.show_object_viewport_surf = False
+        context.space_data.show_object_viewport_meta = False
+        context.space_data.show_object_viewport_font = False
+        context.space_data.show_object_viewport_curves = False
+        context.space_data.show_object_viewport_pointcloud = False
+        context.space_data.show_object_viewport_volume = False
+        context.space_data.show_object_viewport_grease_pencil = False
+        context.space_data.show_object_viewport_armature = False
+        context.space_data.show_object_viewport_lattice = False
+        context.space_data.show_object_viewport_empty = False
+        context.space_data.show_object_viewport_light = False
+        context.space_data.show_object_viewport_light_probe = False
+        context.space_data.show_object_viewport_camera = False
+        context.space_data.show_object_viewport_speaker = False
+        
+        for area in bp_screen.areas:
+            if area.type == 'VIEW_3D':
+                bp_area = area
+                break
+        
+        if bp_area:
+            space = bp_area.spaces.active
+            space.region_3d.view_perspective = 'CAMERA'
+            space.camera = bp_camera
+            bpy.context.space_data.lock_camera = True
+            bpy.context.space_data.overlay.show_camera_passepartout = False
+            
+            bpy.context.view_layer.update()
+        
+        return {'FINISHED'}
+
 def _uniqify(name, other_names):
     # :arg name: The name to make unique.
     # :type name: str
@@ -167,21 +238,28 @@ def _uniqify(name, other_names):
     return "{:s}.{:03d}".format(name, min_index)
 
 
+classes = (
+    VIEW3D_PT_AnimationTools,
+    VIEW3D_PT_SelectionTools,
+    POSE_OT_AddSelectionSet,
+    POSE_OT_RemoveSelectionSet,
+    POSE_OT_BonePicker
+)
+
 def register():
-    bpy.utils.register_class(VIEW3D_PT_AnimationTools)
-    bpy.utils.register_class(VIEW3D_PT_SelectionTools)
-    bpy.utils.register_class(POSE_OT_AddSelectionSet)
-    bpy.utils.register_class(POSE_OT_RemoveSelectionSet)
+    from bpy.utils import register_class
+    
+    for cls in classes:
+        register_class(cls)
 
     bpy.types.Scene.input = StringProperty(name="", description="Name for the set to add/remove. Default NewSelectionSet")
 
 def unregister():
+    from bpy.utils import unregister_class
 
     del bpy.types.Scene.input
 
-    bpy.utils.unregister_class(VIEW3D_PT_AnimationTools)
-    bpy.utils.unregister_class(VIEW3D_PT_SelectionTools)
-    bpy.utils.unregister_class(POSE_OT_AddSelectionSet)
-    bpy.utils.unregister_class(POSE_OT_RemoveSelectionSet)
+    for cls in reversed(classes):
+        unregister_class(cls)
 
 register()
